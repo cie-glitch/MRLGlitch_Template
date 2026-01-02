@@ -1,0 +1,2 @@
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/CMakeLists.txt
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/CMakeLists.txt

@@ -1,0 +1,17 @@
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/GAToUnityCallbacks.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/MacroEnd.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/MacroHeaderBegin.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/MacroSourceBegin.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGAApplication.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGAConfiguration.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGADebug.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGAEvents.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGAInput.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGASoftKeyboard.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGASoftKeyboardCallbacks.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGATypes.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UGAVersion.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UnityToGACallbacks.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UnityToGAConfigurationCallbacks.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UnityToGAKeyEventCallbacks.h
+/Users/linalopes/Documents/Unity/MetaQuest3/MRLGlitch_Passthrough_FBX_Test/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/UnityToGAMotionEventCallbacks.h
