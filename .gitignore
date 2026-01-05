@@ -27,3 +27,6 @@ Thumbs.db
 
 sysinfo.txt
 
+# Obsidian HTML export (published to gh-pages only)
+Documentation/
+
