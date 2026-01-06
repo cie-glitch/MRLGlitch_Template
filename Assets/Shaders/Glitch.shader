@@ -12,9 +12,9 @@ Shader "HSLU/Glitch"
 
         _BumpMap("Normal Map", 2D) = "bump" {}
 
-        _SecondaryColor("Secondary Color", Color) = (1,1,1,1)
-        _SecondaryBumpMap("Secondary Bump Map", 2D) = "bump" {}
         _SecondaryMask("Secondary Mask", 2D) = "white" {}
+
+        _TriplanarBlend("Triplanar Blend Sharpness", Range(1,8)) = 4
 
         _Downsample("Downsample", Vector) = (100,100,100,0)
         _ScrollSpeed("Scroll Speed (X, Y)", Vector) = (0.01,0.01,0,0)
@@ -67,7 +67,6 @@ Shader "HSLU/Glitch"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
 
             TEXTURE2D(_RoughnessMap);       SAMPLER(sampler_RoughnessMap);
-            TEXTURE2D(_SecondaryBumpMap);   SAMPLER(sampler_SecondaryBumpMap);
             TEXTURE2D(_SecondaryMask);      SAMPLER(sampler_SecondaryMask);
 
             CBUFFER_START(UnityPerMaterial)
@@ -81,7 +80,7 @@ Shader "HSLU/Glitch"
                 float _Metallic;
                 float _Smoothness;
 
-                float4 _SecondaryColor;
+                float _TriplanarBlend;
 
                 float4 _EmissionColor;
                 float3 _Downsample;
@@ -166,26 +165,23 @@ Shader "HSLU/Glitch"
                 // Sample base albedo (uv already has _BaseMap_ST applied and animation)
                 float4 baseSample = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv) * _BaseColor;
                 
-                // Triplanar mapping for secondary textures
+                // Triplanar mapping for secondary mask texture
                 float3 blendWeights = abs(normalWS);
+                blendWeights = pow(blendWeights, _TriplanarBlend);
                 blendWeights = blendWeights / (blendWeights.x + blendWeights.y + blendWeights.z);
                 
-                // Sample secondary bump map using triplanar mapping
-                float4 bumpX = SAMPLE_TEXTURE2D(_SecondaryBumpMap, sampler_SecondaryBumpMap, positionWS.zy);
-                float4 bumpY = SAMPLE_TEXTURE2D(_SecondaryBumpMap, sampler_SecondaryBumpMap, positionWS.xz);
-                float4 bumpZ = SAMPLE_TEXTURE2D(_SecondaryBumpMap, sampler_SecondaryBumpMap, positionWS.xy);
-                float4 secondaryBumpSample = bumpX * blendWeights.x + bumpY * blendWeights.y + bumpZ * blendWeights.z;
-                half3 secondaryNormalTS = UnpackNormal(secondaryBumpSample);
+                // Sample mask using triplanar mapping (RGB for color, A channel for mask)
+                float4 maskSampleX = SAMPLE_TEXTURE2D(_SecondaryMask, sampler_SecondaryMask, positionWS.zy);
+                float4 maskSampleY = SAMPLE_TEXTURE2D(_SecondaryMask, sampler_SecondaryMask, positionWS.xz);
+                float4 maskSampleZ = SAMPLE_TEXTURE2D(_SecondaryMask, sampler_SecondaryMask, positionWS.xy);
+                float4 maskSample = maskSampleX * blendWeights.x + maskSampleY * blendWeights.y + maskSampleZ * blendWeights.z;
                 
-                // Sample mask using triplanar mapping (R channel only)
-                float maskX = SAMPLE_TEXTURE2D(_SecondaryMask, sampler_SecondaryMask, positionWS.zy).r;
-                float maskY = SAMPLE_TEXTURE2D(_SecondaryMask, sampler_SecondaryMask, positionWS.xz).r;
-                float maskZ = SAMPLE_TEXTURE2D(_SecondaryMask, sampler_SecondaryMask, positionWS.xy).r;
-                float mask = maskX * blendWeights.x + maskY * blendWeights.y + maskZ * blendWeights.z;
+                float3 secondaryColor = maskSample.rgb;
+                float mask = maskSample.a;
                 
                 // Blend albedo between base and secondary color using mask
-                s.albedo = lerp(baseSample.rgb, _SecondaryColor.rgb * mask, mask);
-                s.alpha = saturate(baseSample.a * _Alpha + mask);
+                s.albedo = lerp(baseSample.rgb, secondaryColor, mask);
+                s.alpha = saturate(baseSample.a * _Alpha + maskSample.b);
 
                 s.metallic = _Metallic;
                 
@@ -194,15 +190,15 @@ Shader "HSLU/Glitch"
                 float roughness = SAMPLE_TEXTURE2D(_RoughnessMap, sampler_RoughnessMap, roughnessUV).r;
                 s.smoothness = _Smoothness * (1.0 - roughness);
 
-                // Blend normals between base and secondary using mask
-                s.normalTS = normalize(lerp(normalTS, secondaryNormalTS, mask));
+                // Use base normal map only
+                s.normalTS = normalTS;
 
                 s.occlusion = 1.0;
 
                 // Sample emission map (apply proper UV transform)
                 float2 emissionUV = uv * _EmissionMap_ST.xy / _BaseMap_ST.xy + (_EmissionMap_ST.zw - _BaseMap_ST.zw);
                 float3 em = SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, emissionUV).rgb * _EmissionColor.rgb;
-                s.emission = em;
+                s.emission = em + maskSample.rgb * _EmissionColor.a;
 
                 s.specular = 0;
                 s.clearCoatMask = 0;
