@@ -12,16 +12,27 @@ public class Networking : MonoBehaviourPun, IConnectionCallbacks, IMatchmakingCa
     
     [Header("Room Settings")]
     public string roomName = "VRAnchorRoom";
+    public int roomTimeoutTime =60 * 60 * 1000;
     
     [Header("Debug")]
     public bool enableDebugLogs = true;
 
     [SerializeField] UnityEvent OnJoinedRoomEvent;
     
+    
     private XRAnchorManager anchorManager;
     private bool hasSharedAnchor = false;
     private bool hasJoinedRoomBefore = false;
     private bool isReconnecting = false;
+    private bool pendingRejoin = false;
+
+    [Header("Reconnect")]
+    [Tooltip("Initial delay between reconnect attempts (seconds).")]
+    [SerializeField] private float reconnectInitialDelaySeconds = 2f;
+    [Tooltip("Max delay between reconnect attempts (seconds).")]
+    [SerializeField] private float reconnectMaxDelaySeconds = 30f;
+
+    private int reconnectAttemptCount = 0;
 
     void Start()
     {
@@ -81,7 +92,16 @@ public class Networking : MonoBehaviourPun, IConnectionCallbacks, IMatchmakingCa
     {
         Debug.Log("[Networking] Connected to Master Server and Lobby");
         StatusText.Instance?.Print("Connected to Photon");
-        Debug.Log("[Networking] Ready to join rooms. Call Connect() to join the VR room.");
+
+        if (pendingRejoin && hasJoinedRoomBefore && !PhotonNetwork.InRoom)
+        {
+            Debug.Log($"[Networking] Reconnected. Rejoining room: {roomName}");
+            PhotonNetwork.JoinRoom(roomName);
+        }
+        else
+        {
+            Debug.Log("[Networking] Ready to join rooms. Call Connect() to join the VR room.");
+        }
     }
 
     public void OnDisconnected(DisconnectCause cause)
@@ -90,13 +110,24 @@ public class Networking : MonoBehaviourPun, IConnectionCallbacks, IMatchmakingCa
         StatusText.Instance?.Print($"Disconnected: {cause}");
         hasSharedAnchor = false;
         
-        // If we've joined a room before, attempt automatic reconnection
-        if (hasJoinedRoomBefore && !isReconnecting)
+        // If we've joined a room before, keep attempting automatic reconnection.
+        // Note: OnDisconnected can fire multiple times during reconnect cycles; don't stop after the first attempt.
+        if (hasJoinedRoomBefore)
         {
-            Debug.Log("[Networking] Connection lost after joining room. Attempting to reconnect...");
-            StatusText.Instance?.Print("Reconnecting...");
             isReconnecting = true;
-            Invoke(nameof(AttemptReconnection), 2f);
+            pendingRejoin = true;
+            reconnectAttemptCount++;
+
+            float delaySeconds = Mathf.Min(
+                reconnectInitialDelaySeconds * Mathf.Pow(2f, reconnectAttemptCount - 1),
+                reconnectMaxDelaySeconds
+            );
+
+            Debug.Log($"[Networking] Connection lost. Reconnect attempt {reconnectAttemptCount} in {delaySeconds:0.0}s...");
+            StatusText.Instance?.Print($"Reconnecting... ({reconnectAttemptCount})");
+
+            CancelInvoke(nameof(AttemptReconnection));
+            Invoke(nameof(AttemptReconnection), delaySeconds);
         }
     }
 
@@ -128,6 +159,8 @@ public class Networking : MonoBehaviourPun, IConnectionCallbacks, IMatchmakingCa
         // Mark that we've successfully joined a room
         hasJoinedRoomBefore = true;
         isReconnecting = false;
+        pendingRejoin = false;
+        reconnectAttemptCount = 0;
 
         // List all players currently in the room
         foreach (var player in PhotonNetwork.PlayerList)
@@ -161,6 +194,8 @@ public class Networking : MonoBehaviourPun, IConnectionCallbacks, IMatchmakingCa
         RoomOptions roomOptions = new RoomOptions
         {
             MaxPlayers = maxPlayersPerRoom,
+            PlayerTtl = roomTimeoutTime,
+            EmptyRoomTtl = 0,
             IsVisible = true,
             IsOpen = true
         };
@@ -386,16 +421,28 @@ public class Networking : MonoBehaviourPun, IConnectionCallbacks, IMatchmakingCa
 
     void AttemptReconnection()
     {
+        if (!isReconnecting)
+        {
+            return;
+        }
+
         if (!PhotonNetwork.IsConnected)
         {
             Debug.Log("[Networking] Attempting to reconnect to Photon...");
             ConnectToLobby();
+            return;
         }
-        else if (PhotonNetwork.IsConnectedAndReady && !PhotonNetwork.InRoom)
+
+        if (PhotonNetwork.IsConnectedAndReady && !PhotonNetwork.InRoom)
         {
-            Debug.Log("[Networking] Already connected, attempting to rejoin room...");
+            Debug.Log("[Networking] Connected. Attempting to rejoin room...");
             PhotonNetwork.JoinRoom(roomName);
+            return;
         }
+
+        // If we're connected but not ready yet, or already joining, retry shortly.
+        CancelInvoke(nameof(AttemptReconnection));
+        Invoke(nameof(AttemptReconnection), 1f);
     }
 
     void RetryJoinRoom()
@@ -411,6 +458,10 @@ public class Networking : MonoBehaviourPun, IConnectionCallbacks, IMatchmakingCa
     public void Disconnect()
     {
         Debug.Log("[Networking] Manually disconnecting...");
+        isReconnecting = false;
+        pendingRejoin = false;
+        reconnectAttemptCount = 0;
+        CancelInvoke(nameof(AttemptReconnection));
         PhotonNetwork.Disconnect();
     }
 

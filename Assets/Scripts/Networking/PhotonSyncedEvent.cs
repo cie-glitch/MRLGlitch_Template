@@ -2,60 +2,93 @@ using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Playables;
 
 public class PhotonSyncedEvent : MonoBehaviourPun
 {
-
-    [SerializeField] private GameObject performanceObject;
+    [SerializeField] private PlayableDirector performanceTimeline;
     [SerializeField] private UnityEvent onNetworkEvent;
+    [SerializeField] private UnityEvent onNetworkStop;
 
-    void Awake(){
-        performanceObject.SetActive(false);
+    void Awake()
+    {
+        performanceTimeline.gameObject.SetActive(false);
     }
 
     public void StartPlayback()
     {
-        // If not connected or not in a room, invoke the event directly as a fallback
         if (!PhotonNetwork.IsConnected || !PhotonNetwork.InRoom)
         {
-            Debug.Log("[PhotonSyncedEvent] Not connected to Photon - invoking event directly");
             onNetworkEvent.Invoke();
-            performanceObject.SetActive(true);
+            performanceTimeline.gameObject.SetActive(true);
+            performanceTimeline.time = 0;
+            performanceTimeline.Evaluate();
+            performanceTimeline.Play();
             return;
         }
 
-        photonView.RPC(
-            "RPC_RequestPlayback",
-            RpcTarget.MasterClient
-        );
+        photonView.RPC(nameof(RPC_RequestPlayback), RpcTarget.MasterClient);
+    }
+
+    public void StopPlayback()
+    {
+        if (!PhotonNetwork.IsConnected || !PhotonNetwork.InRoom)
+        {
+            performanceTimeline.Stop();
+            performanceTimeline.gameObject.SetActive(false);
+            onNetworkStop.Invoke();
+            return;
+        }
+
+        photonView.RPC(nameof(RPC_RequestStop), RpcTarget.MasterClient);
     }
 
     [PunRPC]
     void RPC_RequestPlayback(PhotonMessageInfo info)
     {
-        if (!PhotonNetwork.IsMasterClient)
-            return;
+        if (!PhotonNetwork.IsMasterClient) return;
 
-        double startTime = PhotonNetwork.Time + 0.2;
+        double t = PhotonNetwork.Time + 0.2;
+        photonView.RPC(nameof(RPC_StartPlayback), RpcTarget.All, t);
+    }
 
-        photonView.RPC(
-            "RPC_StartPlayback",
-            RpcTarget.All,
-            startTime
-        );
+    [PunRPC]
+    void RPC_RequestStop(PhotonMessageInfo info)
+    {
+        if (!PhotonNetwork.IsMasterClient) return;
+
+        double t = PhotonNetwork.Time + 0.2;
+        photonView.RPC(nameof(RPC_StopPlayback), RpcTarget.All, t);
     }
 
     [PunRPC]
     void RPC_StartPlayback(double networkStartTime)
     {
+        StatusText.Instance?.Print("Synchronized start at " + networkStartTime.ToString("F3") + "s");
         StartCoroutine(PlayAtTime(networkStartTime));
     }
 
-    System.Collections.IEnumerator PlayAtTime(double networkStartTime)
+    [PunRPC]
+    void RPC_StopPlayback(double networkStopTime)
     {
-        while (PhotonNetwork.Time < networkStartTime)
-            yield return null;
-        performanceObject.SetActive(true);
+        StatusText.Instance?.Print("Synchronized stop at " + networkStopTime.ToString("F3") + "s");
+        StartCoroutine(StopAtTime(networkStopTime));
+    }
+
+    System.Collections.IEnumerator PlayAtTime(double t)
+    {
+        while (PhotonNetwork.Time < t) yield return null;
+        performanceTimeline.gameObject.SetActive(true);
+        performanceTimeline.Play();
         onNetworkEvent.Invoke();
+    }
+
+    System.Collections.IEnumerator StopAtTime(double t)
+    {
+        while (PhotonNetwork.Time < t) yield return null;
+        performanceTimeline.Stop();
+        performanceTimeline.time = 0;
+        performanceTimeline.gameObject.SetActive(false);
+        onNetworkStop.Invoke();
     }
 }

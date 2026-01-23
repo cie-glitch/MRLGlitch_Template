@@ -31,7 +31,6 @@ public class AnchorCursor : MonoBehaviour
     {
         Debug.Log("Placing cursor at controller position");
         Vector3 targetPosition = leftHandController.position;
-        targetPosition.y = 0;
         cursorTransform.position = targetPosition;
 
     }

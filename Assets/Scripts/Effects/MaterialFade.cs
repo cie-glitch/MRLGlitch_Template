@@ -44,6 +44,7 @@ public class MaterialFade : MonoBehaviour
             Color color = targetMaterial.GetColor(BaseColorProperty);
             targetMaterial.SetColor(BaseColorProperty, new Color(color.r, color.g, color.b, 0));    
         }
+        targetRenderer.enabled = false;
     }
     
     public void FadeIn()
@@ -107,6 +108,8 @@ public class MaterialFade : MonoBehaviour
     
     private IEnumerator FadeCoroutine(float startAlpha, float endAlpha, bool isFadeIn, float? customDuration = null)
     {
+        if(isFadeIn)
+            targetRenderer.enabled = true;
         if (targetMaterial == null)
         {
             Debug.LogWarning("MaterialFade: No material found to fade!");
@@ -141,6 +144,7 @@ public class MaterialFade : MonoBehaviour
         }
         else
         {
+            targetRenderer.enabled = false; 
             onFadeOutComplete?.Invoke();
         }
         
