@@ -12,9 +12,9 @@ Shader "HSLU/Glitch"
 
         _BumpMap("Normal Map", 2D) = "bump" {}
 
-        _SecondaryMask("Secondary Mask", 2D) = "white" {}
-
-        _TriplanarBlend("Triplanar Blend Sharpness", Range(1,8)) = 4
+        _SecondaryTexture("Secondary Texture", 2D) = "white" {}
+        _SecondaryScale("Secondary Scale", Float) = 1
+        _SecondaryAlpha("Secondary Alpha", Range(0,1)) = 1
 
         _Downsample("Downsample", Vector) = (100,100,100,0)
         _ScrollSpeed("Scroll Speed (X, Y)", Vector) = (0.01,0.01,0,0)
@@ -67,7 +67,7 @@ Shader "HSLU/Glitch"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/SurfaceInput.hlsl"
 
             TEXTURE2D(_RoughnessMap);       SAMPLER(sampler_RoughnessMap);
-            TEXTURE2D(_SecondaryMask);      SAMPLER(sampler_SecondaryMask);
+            TEXTURE2D(_SecondaryTexture);   SAMPLER(sampler_SecondaryTexture);
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
@@ -80,7 +80,9 @@ Shader "HSLU/Glitch"
                 float _Metallic;
                 float _Smoothness;
 
-                float _TriplanarBlend;
+                float4 _SecondaryTexture_ST;
+                float _SecondaryScale;
+                float _SecondaryAlpha;
 
                 float4 _EmissionColor;
                 float3 _Downsample;
@@ -108,10 +110,11 @@ Shader "HSLU/Glitch"
                 float3 normalWS   : TEXCOORD1;
                 float4 tangentWS  : TEXCOORD2;
                 float2 uv         : TEXCOORD3;
-                float2 uv2        : TEXCOORD4;
+                float2 uvNoScroll : TEXCOORD4;
+                float2 uv2        : TEXCOORD5;
 
-                float4 shadowCoord : TEXCOORD5;
-                half4 fogAndVertexLight : TEXCOORD6;
+                float4 shadowCoord : TEXCOORD6;
+                half4 fogAndVertexLight : TEXCOORD7;
 
                 UNITY_VERTEX_INPUT_INSTANCE_ID
                 UNITY_VERTEX_OUTPUT_STEREO
@@ -145,7 +148,8 @@ Shader "HSLU/Glitch"
 
                 // Apply texture tiling/offset and animated scrolling
                 float2 scrollOffset = _ScrollSpeed * _Time.y;
-                OUT.uv = IN.uv * _BaseMap_ST.xy + _BaseMap_ST.zw + scrollOffset;
+                OUT.uvNoScroll = IN.uv * _BaseMap_ST.xy + _BaseMap_ST.zw;
+                OUT.uv = OUT.uvNoScroll + scrollOffset;
                 OUT.uv2 = IN.uv2;
 
                 OUT.shadowCoord = GetShadowCoord(posInputs);
@@ -157,31 +161,51 @@ Shader "HSLU/Glitch"
                 return OUT;
             }
 
-            inline SurfaceData BuildSurfaceData(float2 uv, half3 normalTS, float3 positionWS, float3 normalWS)
+            inline float4 SampleSecondaryTriplanar(float3 positionWS, float3 normalWS)
+            {
+                // Classic world-space triplanar mapping.
+                // Uses _SecondaryScale for world tiling and _SecondaryTexture_ST for additional tiling/offset.
+                float3 n = normalize(normalWS);
+                float3 w = pow(abs(n), 4.0);
+                w /= max(w.x + w.y + w.z, 1e-5);
+
+                // Project onto the three axis-aligned planes.
+                float2 uvX = positionWS.zy; // X-facing surfaces sample YZ
+                float2 uvY = positionWS.xz; // Y-facing surfaces sample XZ
+                float2 uvZ = positionWS.xy; // Z-facing surfaces sample XY
+
+                // Flip one axis based on normal sign to reduce mirrored seams.
+                if (n.x < 0.0) uvX.x = -uvX.x;
+                if (n.y < 0.0) uvY.x = -uvY.x;
+                if (n.z < 0.0) uvZ.x = -uvZ.x;
+
+                uvX = uvX * _SecondaryScale * _SecondaryTexture_ST.xy + _SecondaryTexture_ST.zw;
+                uvY = uvY * _SecondaryScale * _SecondaryTexture_ST.xy + _SecondaryTexture_ST.zw;
+                uvZ = uvZ * _SecondaryScale * _SecondaryTexture_ST.xy + _SecondaryTexture_ST.zw;
+
+                float4 sX = SAMPLE_TEXTURE2D(_SecondaryTexture, sampler_SecondaryTexture, uvX);
+                float4 sY = SAMPLE_TEXTURE2D(_SecondaryTexture, sampler_SecondaryTexture, uvY);
+                float4 sZ = SAMPLE_TEXTURE2D(_SecondaryTexture, sampler_SecondaryTexture, uvZ);
+
+                return sX * w.x + sY * w.y + sZ * w.z;
+            }
+
+            inline SurfaceData BuildSurfaceData(float2 uv, float2 baseAlphaUV, half3 normalTS, float3 positionWS, float3 normalWS, float3 viewDirWS)
             {
                 SurfaceData s;
                 ZERO_INITIALIZE(SurfaceData, s);
 
                 // Sample base albedo (uv already has _BaseMap_ST applied and animation)
                 float4 baseSample = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv) * _BaseColor;
+                float baseAlpha = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, baseAlphaUV).a * _BaseColor.a;
+
+                // Sample secondary texture using world-space triplanar projection (RGB for color, A for mask)
+                float4 secondarySample = SampleSecondaryTriplanar(positionWS, normalWS);
+                float secondaryMask = secondarySample.a;
                 
-                // Triplanar mapping for secondary mask texture
-                float3 blendWeights = abs(normalWS);
-                blendWeights = pow(blendWeights, _TriplanarBlend);
-                blendWeights = blendWeights / (blendWeights.x + blendWeights.y + blendWeights.z);
-                
-                // Sample mask using triplanar mapping (RGB for color, A channel for mask)
-                float4 maskSampleX = SAMPLE_TEXTURE2D(_SecondaryMask, sampler_SecondaryMask, positionWS.zy);
-                float4 maskSampleY = SAMPLE_TEXTURE2D(_SecondaryMask, sampler_SecondaryMask, positionWS.xz);
-                float4 maskSampleZ = SAMPLE_TEXTURE2D(_SecondaryMask, sampler_SecondaryMask, positionWS.xy);
-                float4 maskSample = maskSampleX * blendWeights.x + maskSampleY * blendWeights.y + maskSampleZ * blendWeights.z;
-                
-                float3 secondaryColor = maskSample.rgb;
-                float mask = maskSample.a;
-                
-                // Blend albedo between base and secondary color using mask
-                s.albedo = lerp(baseSample.rgb, secondaryColor, mask);
-                s.alpha = saturate(baseSample.a * _Alpha + maskSample.b);
+                // Blend albedo between base and secondary texture using mask
+                s.albedo = lerp(baseSample.rgb, secondarySample.rgb, secondaryMask);
+                s.alpha = lerp(baseAlpha * _Alpha, _SecondaryAlpha, secondaryMask);
 
                 s.metallic = _Metallic;
                 
@@ -198,7 +222,7 @@ Shader "HSLU/Glitch"
                 // Sample emission map (apply proper UV transform)
                 float2 emissionUV = uv * _EmissionMap_ST.xy / _BaseMap_ST.xy + (_EmissionMap_ST.zw - _BaseMap_ST.zw);
                 float3 em = SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, emissionUV).rgb * _EmissionColor.rgb;
-                s.emission = em + maskSample.rgb * _EmissionColor.a;
+                s.emission = em + secondarySample.rgb * secondaryMask * _EmissionColor.a;
 
                 s.specular = 0;
                 s.clearCoatMask = 0;
@@ -224,7 +248,7 @@ Shader "HSLU/Glitch"
                 float2 bumpUV = IN.uv * _BumpMap_ST.xy / _BaseMap_ST.xy + (_BumpMap_ST.zw - _BaseMap_ST.zw);
                 half3 normalTS = UnpackNormal(SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, bumpUV));
 
-                SurfaceData surfaceData = BuildSurfaceData(IN.uv, normalTS, IN.positionWS, normalWS);
+                SurfaceData surfaceData = BuildSurfaceData(IN.uv, IN.uvNoScroll, normalTS, IN.positionWS, normalWS, viewDirWS);
                 float3 nWS = normalize(mul(surfaceData.normalTS, TBN));
                 
          
@@ -270,19 +294,63 @@ Shader "HSLU/Glitch"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
+            TEXTURE2D(_BaseMap);              SAMPLER(sampler_BaseMap);
+            TEXTURE2D(_SecondaryTexture);     SAMPLER(sampler_SecondaryTexture);
+
+            CBUFFER_START(UnityPerMaterial)
+                float4 _BaseMap_ST;
+                float4 _BaseColor;
+                float _Alpha;
+
+                float4 _SecondaryTexture_ST;
+                float _SecondaryScale;
+                float _SecondaryAlpha;
+
+                float2 _ScrollSpeed;
+            CBUFFER_END
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
+                float2 uv         : TEXCOORD0;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
+                float2 uv         : TEXCOORD0;
+                float3 positionWS : TEXCOORD1;
+                float3 normalWS   : TEXCOORD2;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
                 UNITY_VERTEX_OUTPUT_STEREO
             };
+
+            inline float4 SampleSecondaryTriplanar(float3 positionWS, float3 normalWS)
+            {
+                float3 n = normalize(normalWS);
+                float3 w = pow(abs(n), 4.0);
+                w /= max(w.x + w.y + w.z, 1e-5);
+
+                float2 uvX = positionWS.zy;
+                float2 uvY = positionWS.xz;
+                float2 uvZ = positionWS.xy;
+
+                if (n.x < 0.0) uvX.x = -uvX.x;
+                if (n.y < 0.0) uvY.x = -uvY.x;
+                if (n.z < 0.0) uvZ.x = -uvZ.x;
+
+                uvX = uvX * _SecondaryScale * _SecondaryTexture_ST.xy + _SecondaryTexture_ST.zw;
+                uvY = uvY * _SecondaryScale * _SecondaryTexture_ST.xy + _SecondaryTexture_ST.zw;
+                uvZ = uvZ * _SecondaryScale * _SecondaryTexture_ST.xy + _SecondaryTexture_ST.zw;
+
+                float4 sX = SAMPLE_TEXTURE2D(_SecondaryTexture, sampler_SecondaryTexture, uvX);
+                float4 sY = SAMPLE_TEXTURE2D(_SecondaryTexture, sampler_SecondaryTexture, uvY);
+                float4 sZ = SAMPLE_TEXTURE2D(_SecondaryTexture, sampler_SecondaryTexture, uvZ);
+
+                return sX * w.x + sY * w.y + sZ * w.z;
+            }
 
             Varyings vert(Attributes IN)
             {
@@ -293,6 +361,10 @@ Shader "HSLU/Glitch"
 
                 float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
                 float3 normalWS = TransformObjectToWorldNormal(IN.normalOS);
+
+                OUT.uv = IN.uv * _BaseMap_ST.xy + _BaseMap_ST.zw;
+                OUT.positionWS = positionWS;
+                OUT.normalWS = normalWS;
 
                 OUT.positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _MainLightPosition.xyz));
                 return OUT;
@@ -325,18 +397,63 @@ Shader "HSLU/Glitch"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
+            TEXTURE2D(_BaseMap);              SAMPLER(sampler_BaseMap);
+            TEXTURE2D(_SecondaryTexture);     SAMPLER(sampler_SecondaryTexture);
+
+            CBUFFER_START(UnityPerMaterial)
+                float4 _BaseMap_ST;
+                float4 _BaseColor;
+                float _Alpha;
+
+                float4 _SecondaryTexture_ST;
+                float _SecondaryScale;
+                float _SecondaryAlpha;
+
+                float2 _ScrollSpeed;
+            CBUFFER_END
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
+                float3 normalOS   : NORMAL;
+                float2 uv         : TEXCOORD0;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
+                float2 uv         : TEXCOORD0;
+                float3 positionWS : TEXCOORD1;
+                float3 normalWS   : TEXCOORD2;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
                 UNITY_VERTEX_OUTPUT_STEREO
             };
+
+            inline float4 SampleSecondaryTriplanar(float3 positionWS, float3 normalWS)
+            {
+                float3 n = normalize(normalWS);
+                float3 w = pow(abs(n), 4.0);
+                w /= max(w.x + w.y + w.z, 1e-5);
+
+                float2 uvX = positionWS.zy;
+                float2 uvY = positionWS.xz;
+                float2 uvZ = positionWS.xy;
+
+                if (n.x < 0.0) uvX.x = -uvX.x;
+                if (n.y < 0.0) uvY.x = -uvY.x;
+                if (n.z < 0.0) uvZ.x = -uvZ.x;
+
+                uvX = uvX * _SecondaryScale * _SecondaryTexture_ST.xy + _SecondaryTexture_ST.zw;
+                uvY = uvY * _SecondaryScale * _SecondaryTexture_ST.xy + _SecondaryTexture_ST.zw;
+                uvZ = uvZ * _SecondaryScale * _SecondaryTexture_ST.xy + _SecondaryTexture_ST.zw;
+
+                float4 sX = SAMPLE_TEXTURE2D(_SecondaryTexture, sampler_SecondaryTexture, uvX);
+                float4 sY = SAMPLE_TEXTURE2D(_SecondaryTexture, sampler_SecondaryTexture, uvY);
+                float4 sZ = SAMPLE_TEXTURE2D(_SecondaryTexture, sampler_SecondaryTexture, uvZ);
+
+                return sX * w.x + sY * w.y + sZ * w.z;
+            }
 
             Varyings vert(Attributes IN)
             {
@@ -347,6 +464,12 @@ Shader "HSLU/Glitch"
 
                 VertexPositionInputs posInputs = GetVertexPositionInputs(IN.positionOS.xyz);
                 OUT.positionCS = posInputs.positionCS;
+
+                float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                float3 normalWS = TransformObjectToWorldNormal(IN.normalOS);
+                OUT.uv = IN.uv * _BaseMap_ST.xy + _BaseMap_ST.zw;
+                OUT.positionWS = positionWS;
+                OUT.normalWS = normalWS;
                 return OUT;
             }
 
