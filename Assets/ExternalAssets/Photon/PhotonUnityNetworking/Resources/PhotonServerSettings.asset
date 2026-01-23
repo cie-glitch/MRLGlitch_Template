@@ -47,6 +47,10 @@ MonoBehaviour:
   - RequestAnchor
   - RPC_StartPlayback
   - RPC_RequestPlayback
+  - RPC_PausePlayback
+  - RPC_RequestPause
+  - RPC_RequestStop
+  - RPC_StopPlayback
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 0
