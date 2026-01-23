@@ -219,9 +219,11 @@ public class Networking : MonoBehaviourPun, IConnectionCallbacks, IMatchmakingCa
 
     public void OnPlayerEnteredRoom(Player newPlayer)
     {
-        Debug.Log($"[Networking] New player joined: {newPlayer.NickName} (ID: {newPlayer.ActorNumber})");
-        StatusText.Instance?.Print($"Player joined: {newPlayer.NickName}");
-        Debug.Log($"[Networking] Total players now: {PhotonNetwork.CurrentRoom.PlayerCount}");
+        int totalPlayers = PhotonNetwork.CurrentRoom != null ? PhotonNetwork.CurrentRoom.PlayerCount : 0;
+        int maxPlayers = PhotonNetwork.CurrentRoom != null ? PhotonNetwork.CurrentRoom.MaxPlayers : 0;
+
+        Debug.Log($"[Networking] Player joined: {newPlayer.NickName} (ID: {newPlayer.ActorNumber}) | Total: {totalPlayers}/{maxPlayers}");
+        StatusText.Instance?.Print($"Player joined: {newPlayer.NickName} ({totalPlayers}/{maxPlayers})");
 
         // Send our anchor to the new player if we have one
         if (hasSharedAnchor)
@@ -235,9 +237,11 @@ public class Networking : MonoBehaviourPun, IConnectionCallbacks, IMatchmakingCa
 
     public void OnPlayerLeftRoom(Player otherPlayer)
     {
-        Debug.Log($"[Networking] Player left: {otherPlayer.NickName} (ID: {otherPlayer.ActorNumber})");
-        StatusText.Instance?.Print($"Player left: {otherPlayer.NickName}");
-        Debug.Log($"[Networking] Remaining players: {PhotonNetwork.CurrentRoom.PlayerCount}");
+        int totalPlayers = PhotonNetwork.CurrentRoom != null ? PhotonNetwork.CurrentRoom.PlayerCount : 0;
+        int maxPlayers = PhotonNetwork.CurrentRoom != null ? PhotonNetwork.CurrentRoom.MaxPlayers : 0;
+
+        Debug.Log($"[Networking] Player left: {otherPlayer.NickName} (ID: {otherPlayer.ActorNumber}) | Total: {totalPlayers}/{maxPlayers}");
+        StatusText.Instance?.Print($"Player left: {otherPlayer.NickName} ({totalPlayers}/{maxPlayers})");
     }
 
     public void OnJoinRandomFailed(short returnCode, string message)
