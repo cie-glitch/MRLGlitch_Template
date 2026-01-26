@@ -25,6 +25,10 @@ Shader "HSLU/Glitch"
 
         [HDR]_EmissionColor("Emission Color", Color) = (0,0,0,0)
         _EmissionMap("Emission Map", 2D) = "white" {}
+
+        [HDR]_RimColor("Rim Color", Color) = (0,0,0,0)
+        _RimPower("Rim Power", Range(0.25, 8)) = 2
+        _RimIntensity("Rim Intensity", Range(0, 5)) = 0
     }
 
     SubShader
@@ -90,6 +94,10 @@ Shader "HSLU/Glitch"
                 float _WaveFrequency;
                 float _WaveSpeed;
                 float _WaveAmount;
+
+                float4 _RimColor;
+                float _RimPower;
+                float _RimIntensity;
             CBUFFER_END
 
             struct Attributes
@@ -112,6 +120,8 @@ Shader "HSLU/Glitch"
                 float2 uv         : TEXCOORD3;
                 float2 uvNoScroll : TEXCOORD4;
                 float2 uv2        : TEXCOORD5;
+
+                float2 uvRaw      : TEXCOORD8;
 
                 float4 shadowCoord : TEXCOORD6;
                 half4 fogAndVertexLight : TEXCOORD7;
@@ -148,14 +158,15 @@ Shader "HSLU/Glitch"
 
                 // Apply texture tiling/offset and animated scrolling
                 float2 scrollOffset = _ScrollSpeed * _Time.y;
+                OUT.uvRaw = IN.uv;
                 OUT.uvNoScroll = IN.uv * _BaseMap_ST.xy + _BaseMap_ST.zw;
                 OUT.uv = OUT.uvNoScroll + scrollOffset;
                 OUT.uv2 = IN.uv2;
 
                 OUT.shadowCoord = GetShadowCoord(posInputs);
 
-                half fogFactor = ComputeFogFactor(posInputs.positionCS.z);
-                half3 vLight = VertexLighting(posInputs.positionWS, nrmInputs.normalWS);
+                half fogFactor = ComputeFogFactor(OUT.positionCS.z);
+                half3 vLight = VertexLighting(downsampledWS, nrmInputs.normalWS);
                 OUT.fogAndVertexLight = half4(fogFactor, vLight);
 
                 return OUT;
@@ -190,14 +201,16 @@ Shader "HSLU/Glitch"
                 return sX * w.x + sY * w.y + sZ * w.z;
             }
 
-            inline SurfaceData BuildSurfaceData(float2 uv, float2 baseAlphaUV, half3 normalTS, float3 positionWS, float3 normalWS, float3 viewDirWS)
+            inline SurfaceData BuildSurfaceData(float2 baseRgbUV, float2 uv, float2 uvRaw, half3 normalTS, float3 positionWS, float3 normalWS, float3 viewDirWS)
             {
                 SurfaceData s;
                 ZERO_INITIALIZE(SurfaceData, s);
 
-                // Sample base albedo (uv already has _BaseMap_ST applied and animation)
-                float4 baseSample = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv) * _BaseColor;
-                float baseAlpha = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, baseAlphaUV).a * _BaseColor.a;
+                // Sample base texture twice:
+                // 1) RGB: with _BaseMap_ST scale/offset (no scroll)
+                // 2) A: raw mesh UVs (no scale/offset)
+                float4 baseSample = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, baseRgbUV) * _BaseColor;
+                float baseAlpha = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uvRaw).a * _BaseColor.a;
 
                 // Sample secondary texture using world-space triplanar projection (RGB for color, A for mask)
                 float4 secondarySample = SampleSecondaryTriplanar(positionWS, normalWS);
@@ -244,11 +257,12 @@ Shader "HSLU/Glitch"
                 float3 bitangentWS = cross(normalWS, tangentWS) * tangentSign;
                 float3x3 TBN = float3x3(tangentWS, bitangentWS, normalWS);
 
-                // Sample normal map with proper UV transform
-                float2 bumpUV = IN.uv * _BumpMap_ST.xy / _BaseMap_ST.xy + (_BumpMap_ST.zw - _BaseMap_ST.zw);
+                // Sample normal map using existing scroll animation + _BumpMap_ST scale/offset
+                float2 scrollOffset = _ScrollSpeed * _Time.y;
+                float2 bumpUV = IN.uvRaw * _BumpMap_ST.xy + _BumpMap_ST.zw + scrollOffset;
                 half3 normalTS = UnpackNormal(SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, bumpUV));
 
-                SurfaceData surfaceData = BuildSurfaceData(IN.uv, IN.uvNoScroll, normalTS, IN.positionWS, normalWS, viewDirWS);
+                SurfaceData surfaceData = BuildSurfaceData(IN.uvNoScroll, IN.uv, IN.uvRaw, normalTS, IN.positionWS, normalWS, viewDirWS);
                 float3 nWS = normalize(mul(surfaceData.normalTS, TBN));
                 
          
@@ -267,6 +281,12 @@ Shader "HSLU/Glitch"
                 inputData.shadowMask = SAMPLE_SHADOWMASK(IN.uv2);
 
                 half4 col = UniversalFragmentPBR(inputData, surfaceData);
+
+                // Rim lighting (edge glow): stronger at grazing angles
+                float ndv = saturate(dot(inputData.normalWS, inputData.viewDirectionWS));
+                float rim = pow(1.0 - ndv, _RimPower) * _RimIntensity;
+                col.rgb += _RimColor.rgb * rim;
+
                 col.rgb = MixFog(col.rgb, inputData.fogCoord);
                 
                 return col;
