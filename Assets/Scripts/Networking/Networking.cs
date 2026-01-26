@@ -2,9 +2,10 @@ using UnityEngine;
 using UnityEngine.Events;
 using Photon.Pun;
 using Photon.Realtime;
+using ExitGames.Client.Photon;
 using System.Collections.Generic;
 
-public class Networking : MonoBehaviourPun, IConnectionCallbacks, IMatchmakingCallbacks
+public class Networking : MonoBehaviourPun, IConnectionCallbacks, IMatchmakingCallbacks, IInRoomCallbacks
 {
     [Header("Connection Settings")]
     public string gameVersion = "1.0";
@@ -242,6 +243,23 @@ public class Networking : MonoBehaviourPun, IConnectionCallbacks, IMatchmakingCa
 
         Debug.Log($"[Networking] Player left: {otherPlayer.NickName} (ID: {otherPlayer.ActorNumber}) | Total: {totalPlayers}/{maxPlayers}");
         StatusText.Instance?.Print($"Player left: {otherPlayer.NickName} ({totalPlayers}/{maxPlayers})");
+    }
+
+    public void OnRoomPropertiesUpdate(Hashtable propertiesThatChanged)
+    {
+        if (!enableDebugLogs) return;
+        Debug.Log($"[Networking] Room properties updated: {propertiesThatChanged?.Count ?? 0}");
+    }
+
+    public void OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
+    {
+        if (!enableDebugLogs) return;
+        Debug.Log($"[Networking] Player properties updated: {targetPlayer?.NickName} (ID: {targetPlayer?.ActorNumber}) | Props: {changedProps?.Count ?? 0}");
+    }
+
+    public void OnMasterClientSwitched(Player newMasterClient)
+    {
+        Debug.Log($"[Networking] Master client switched to: {newMasterClient?.NickName} (ID: {newMasterClient?.ActorNumber})");
     }
 
     public void OnJoinRandomFailed(short returnCode, string message)

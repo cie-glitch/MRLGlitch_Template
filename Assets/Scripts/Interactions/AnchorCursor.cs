@@ -47,6 +47,12 @@ public class AnchorCursor : MonoBehaviour
         rotating = true;
     }
 
+    public void SetNothing()
+    {
+        moving = false;
+        rotating = false;
+    }
+
     void Update(){
         if (moving || rotating)
             HandleMovementInput();
