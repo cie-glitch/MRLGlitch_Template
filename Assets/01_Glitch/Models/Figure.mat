@@ -39,7 +39,7 @@ Material:
     m_TexEnvs:
     - _BaseMap:
         m_Texture: {fileID: 2800000, guid: c826f029ea9354faf9b4a46fba45c8ea, type: 3}
-        m_Scale: {x: 1, y: 1}
+        m_Scale: {x: 4, y: 4}
         m_Offset: {x: 0, y: 0}
     - _BumpMap:
         m_Texture: {fileID: 2800000, guid: 437414d2116c8483993a15a3dbf41bfb, type: 3}
@@ -79,7 +79,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     - _RoughnessMap:
         m_Texture: {fileID: 2800000, guid: dbb182a3c481840adba0338a38b485e6, type: 3}
-        m_Scale: {x: 1, y: 1}
+        m_Scale: {x: 10, y: 10}
         m_Offset: {x: 0, y: 0}
     - _SecondaryBumpMap:
         m_Texture: {fileID: 0}
@@ -112,7 +112,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _AddPrecomputedVelocity: 0
-    - _Alpha: 1
+    - _Alpha: 0
     - _AlphaClip: 0
     - _AlphaToMask: 0
     - _BendAmount: 1
@@ -135,16 +135,19 @@ Material:
     - _GridAlpha: 1
     - _GridScale: 2
     - _GridThickness: 0.004
-    - _Metallic: 0.758
+    - _Metallic: 0.403
     - _OcclusionStrength: 1
     - _Parallax: 0.005
     - _QueueControl: 0
     - _QueueOffset: 0
     - _ReceiveShadows: 1
+    - _RimIntensity: 0.51
+    - _RimPower: 1.99
     - _SecondaryAlpha: 1
     - _SecondaryBumpScale: 1
-    - _SecondaryScale: 0.75
-    - _Smoothness: 0
+    - _SecondaryScale: 1
+    - _SecondaryUWhenXFacing: 0.5
+    - _Smoothness: 0.252
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
@@ -153,16 +156,17 @@ Material:
     - _TriplanarBlend: 8
     - _WaveAmount: 0
     - _WaveFrequency: 25
-    - _WaveSpeed: 0.79974717
+    - _WaveSpeed: 3
     - _WorkflowMode: 1
     - _XRMotionVectorsPass: 1
     - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _Downsample: {r: 300, g: 300, b: 300, a: 0}
+    - _Downsample: {r: 1000, g: 1000, b: 1000, a: 0}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 0.2784314}
-    - _ScrollSpeed: {r: 0.017428437, g: 0.017428437, b: 0, a: 0}
+    - _RimColor: {r: 0.26090246, g: 0.29195023, b: 0.38679248, a: 0}
+    - _ScrollSpeed: {r: 0.002, g: 0.002, b: 0, a: 0}
     - _SecondaryColor: {r: 0.11485406, g: 0.5980333, b: 0.8396226, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []
